@@ -1,13 +1,17 @@
+mod bookmark;
+
 use color_eyre::Result;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
     text::Line,
-    widgets::{Block, Borders, Tabs, Paragraph},
+    widgets::{Block, Borders, Tabs, Paragraph, List, ListItem},
     DefaultTerminal,
     Frame,
 };
+
+use bookmark::Bookmarks;
 
 #[derive(Debug)]
 enum WindowMode {
@@ -37,6 +41,7 @@ pub struct App {
     window_mode: WindowMode,
     selected_tab: TabMode,
     tab_labels: Vec<Line<'static>>,
+    bookmarks: Bookmarks
 }
 
 impl App {
@@ -49,6 +54,7 @@ impl App {
                 Line::from("Tab 2"),
                 Line::from("Tab 3"),
             ],
+            bookmarks: Bookmarks::new(),
         }
     }
 
@@ -72,6 +78,34 @@ impl App {
                             _ => {}
                         }
                     }
+                    KeyCode::Up => {
+                        match self.window_mode {
+                            WindowMode::Bookmark => {
+                                if self.bookmarks.selected_index > 0 {
+                                    self.bookmarks.selected_index -= 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Down => {
+                        match self.window_mode {
+                            WindowMode::Bookmark => {
+                                if self.bookmarks.selected_index < self.bookmarks.bookmarks.len() - 1 {
+                                    self.bookmarks.selected_index += 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Enter => {
+                        match self.window_mode {
+                            WindowMode::Bookmark => {
+                                self.bookmarks.open_browser();
+                            }
+                            _ => {}
+                        }
+                    }
                     KeyCode::Esc => break,
                     _ => {}
                 }
@@ -84,7 +118,7 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let main_layout = Layout::vertical([
             Constraint::Min(0),
-            Constraint::Length(1),
+            Constraint::Length(2),
         ]);
         let [app_area, footer_area] = main_layout.areas(frame.area());
 
@@ -102,18 +136,36 @@ impl App {
     }
 
     fn render_bookmark_area(&self, frame: &mut Frame, area: Rect) {
-        let bookmark = match self.window_mode {
+        let bookmark_list_item = 
+            self.bookmarks.bookmarks.iter().enumerate().map(|(i, bookmark)| {
+                if i == self.bookmarks.selected_index {
+                    ListItem::new(format!("> {}", bookmark.title.to_string()))
+                        .style(Style::default().fg(Color::Green))
+                } else {
+                    ListItem::new(bookmark.title.clone())
+                }
+            });
+
+        let bookmarks = match self.window_mode {
             WindowMode::Bookmark => {
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Green))
-                    .title(" Bookmark ")
-            },
+                List::new(bookmark_list_item)
+                    .block(
+                        Block::default()
+                            .title("  Bookmark  ")
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::Green))
+                    )
+            }
             _ => {
-                Block::default().borders(Borders::ALL).title(" Bookmark ")
+                List::new(bookmark_list_item)
+                    .block(
+                        Block::default()
+                            .title("  Bookmark  ")
+                            .borders(Borders::ALL)
+                    )
             }
         };
-        frame.render_widget(bookmark, area);
+        frame.render_widget(bookmarks, area);
     }
 
     fn render_tab_area(&self, frame: &mut Frame, area: Rect) {
@@ -154,7 +206,7 @@ impl App {
 
     fn render_footer_area(&self, frame: &mut Frame, area: Rect) {
         let footer_text = Paragraph::new(
-            "  Quit: Esc, F1: Bookmark, F2: Tab, Tab: Move Tab"
+            "  Quit: Esc, F1: Bookmark, F2: Tab, Tab: Move Tab\n  Enter: Bookmark -> Open Browser",
         );
         frame.render_widget(footer_text, area);
     }
