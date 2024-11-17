@@ -1,4 +1,5 @@
 mod bookmark;
+mod virtualbox;
 
 use color_eyre::Result;
 use ratatui::{
@@ -12,6 +13,7 @@ use ratatui::{
 };
 
 use bookmark::Bookmarks;
+use virtualbox::VirtualBox;
 
 #[derive(Debug)]
 enum WindowMode {
@@ -21,7 +23,7 @@ enum WindowMode {
 
 #[derive(Debug, Clone)]
 enum TabMode {
-    Tab1,
+    VirtualBox,
     Tab2,
     Tab3,
 }
@@ -29,7 +31,7 @@ enum TabMode {
 impl From<TabMode> for Option<usize> {
     fn from(tab: TabMode) -> Self {
         match tab {
-            TabMode::Tab1 => Some(0),
+            TabMode::VirtualBox => Some(0),
             TabMode::Tab2 => Some(1),
             TabMode::Tab3 => Some(2),
         }
@@ -41,20 +43,22 @@ pub struct App {
     window_mode: WindowMode,
     selected_tab: TabMode,
     tab_labels: Vec<Line<'static>>,
-    bookmarks: Bookmarks
+    bookmarks: Bookmarks,
+    virtualbox: VirtualBox,
 }
 
 impl App {
     pub fn new() -> Self {
         Self {
             window_mode: WindowMode::Tab,
-            selected_tab: TabMode::Tab1,
+            selected_tab: TabMode::VirtualBox,
             tab_labels: vec![
-                Line::from("Tab 1"),
+                Line::from("VirtualBox"),
                 Line::from("Tab 2"),
                 Line::from("Tab 3"),
             ],
             bookmarks: Bookmarks::new(),
+            virtualbox: VirtualBox::new(),
         }
     }
 
@@ -70,9 +74,9 @@ impl App {
                         match self.window_mode {
                             WindowMode::Tab => {
                                 match self.selected_tab {
-                                    TabMode::Tab1 => self.selected_tab = TabMode::Tab2,
+                                    TabMode::VirtualBox => self.selected_tab = TabMode::Tab2,
                                     TabMode::Tab2 => self.selected_tab = TabMode::Tab3,
-                                    TabMode::Tab3 => self.selected_tab = TabMode::Tab1,
+                                    TabMode::Tab3 => self.selected_tab = TabMode::VirtualBox,
                                 }
                             }
                             _ => {}
@@ -85,7 +89,16 @@ impl App {
                                     self.bookmarks.selected_index -= 1;
                                 }
                             }
-                            _ => {}
+                            WindowMode::Tab => {
+                                match self.selected_tab {
+                                    TabMode::VirtualBox => {
+                                        if self.virtualbox.selected_index > 0 {
+                                            self.virtualbox.selected_index -= 1;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     KeyCode::Down => {
@@ -95,7 +108,16 @@ impl App {
                                     self.bookmarks.selected_index += 1;
                                 }
                             }
-                            _ => {}
+                            WindowMode::Tab => {
+                                match self.selected_tab {
+                                    TabMode::VirtualBox => {
+                                        if self.virtualbox.selected_index < self.virtualbox.machines.len() - 1 {
+                                            self.virtualbox.selected_index += 1;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     KeyCode::Enter => {
@@ -103,7 +125,12 @@ impl App {
                             WindowMode::Bookmark => {
                                 self.bookmarks.open_browser();
                             }
-                            _ => {}
+                            WindowMode::Tab => {
+                                match self.selected_tab {
+                                    TabMode::VirtualBox => self.virtualbox.open_virtualbox(),
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     KeyCode::Esc => break,
@@ -182,31 +209,50 @@ impl App {
             .block(Block::default().borders(Borders::ALL).title("  Tabs  "));
         frame.render_widget(tabs, header_area);
 
-        let content = match self.selected_tab {
-            TabMode::Tab1 => "  Content of Tab 1  ",
-            TabMode::Tab2 => "  Content of Tab 2  ",
-            TabMode::Tab3 => "  Content of Tab 3  ",
-        };
+        match self.selected_tab {
+            // TabMode::VirtualBox => "  VirtualBox  ",
+            TabMode::VirtualBox => self.render_virtualbox(frame, app_area),
+            TabMode::Tab2 => {},
+            TabMode::Tab3 => {},
+        }
+    }
 
-        let content_block = match self.window_mode {
+    fn render_virtualbox(&self, frame: &mut Frame, area: Rect) {
+        let machine_list_item = 
+            self.virtualbox.machines.iter().enumerate().map(|(i, machine)| {
+                if i == self.virtualbox.selected_index {
+                    ListItem::new(format!("> {}", machine.to_string()))
+                        .style(Style::default().fg(Color::Green))
+                } else {
+                    ListItem::new(machine.clone())
+                }
+            });
+
+        let machines = match self.window_mode {
             WindowMode::Tab => {
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Green))
-                    .title(content)
+                List::new(machine_list_item)
+                    .block(
+                        Block::default()
+                            .title("  Virtualbox  ")
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::Green))
+                    )
             }
             _ => {
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(content)
+                List::new(machine_list_item)
+                    .block(
+                        Block::default()
+                            .title("  Virtualbox  ")
+                            .borders(Borders::ALL)
+                    )
             }
         };
-        frame.render_widget(content_block, app_area);
+        frame.render_widget(machines, area);
     }
 
     fn render_footer_area(&self, frame: &mut Frame, area: Rect) {
         let footer_text = Paragraph::new(
-            "  Quit: Esc, F1: Bookmark, F2: Tab, Tab: Move Tab\n  Enter: Bookmark -> Open Browser",
+            "  Quit: Esc, F1: Bookmark, F2: Tab, Tab: Move Tab\n  Enter: Bookmark -> Open Browser, VirtualBox -> Open Machine",
         );
         frame.render_widget(footer_text, area);
     }
