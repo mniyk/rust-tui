@@ -1,38 +1,48 @@
 mod bookmark;
 mod virtualbox;
+pub mod google;
 
 use color_eyre::Result;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode},
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
-    text::Line,
-    widgets::{Block, Borders, Tabs, Paragraph, List, ListItem},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
     DefaultTerminal,
     Frame,
 };
 
 use bookmark::Bookmarks;
 use virtualbox::VirtualBox;
+use google::authentication::TokenInfo;
+use google::calendar::{
+    calendar::{
+        Schedules,
+        Mode as ScheduleMode,
+    },
+    ui::UI as CalendarUI,
+    keybind::KeyBind as CalendarKeyBind,
+};
 
 #[derive(Debug)]
-enum WindowMode {
+pub enum WindowMode {
     Bookmark,
     Tab,
 }
 
 #[derive(Debug, Clone)]
-enum TabMode {
+pub enum TabMode {
+    Schedule,
     VirtualBox,
-    Tab2,
     Tab3,
 }
 
 impl From<TabMode> for Option<usize> {
     fn from(tab: TabMode) -> Self {
         match tab {
-            TabMode::VirtualBox => Some(0),
-            TabMode::Tab2 => Some(1),
+            TabMode::Schedule => Some(0),
+            TabMode::VirtualBox => Some(1),
             TabMode::Tab3 => Some(2),
         }
     }
@@ -45,20 +55,24 @@ pub struct App {
     tab_labels: Vec<Line<'static>>,
     bookmarks: Bookmarks,
     virtualbox: VirtualBox,
+    token_info: TokenInfo,
+    schedules: Schedules,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(token_info: &TokenInfo) -> Self {
         Self {
             window_mode: WindowMode::Tab,
-            selected_tab: TabMode::VirtualBox,
+            selected_tab: TabMode::Schedule,
             tab_labels: vec![
+                Line::from("Schedule"),
                 Line::from("VirtualBox"),
-                Line::from("Tab 2"),
                 Line::from("Tab 3"),
             ],
             bookmarks: Bookmarks::new(),
             virtualbox: VirtualBox::new(),
+            token_info: token_info.clone(),
+            schedules: Schedules::new(token_info), 
         }
     }
 
@@ -70,71 +84,55 @@ impl App {
                 match key.code {
                     KeyCode::F(1) => self.window_mode = WindowMode::Bookmark,
                     KeyCode::F(2) => self.window_mode = WindowMode::Tab,
-                    KeyCode::Tab => {
-                        match self.window_mode {
-                            WindowMode::Tab => {
-                                match self.selected_tab {
-                                    TabMode::VirtualBox => self.selected_tab = TabMode::Tab2,
-                                    TabMode::Tab2 => self.selected_tab = TabMode::Tab3,
-                                    TabMode::Tab3 => self.selected_tab = TabMode::VirtualBox,
+                    _ => {},
+                }
+                
+                match self.window_mode {
+                    WindowMode::Bookmark => match key.code {
+                        KeyCode::Up => {
+                            if self.bookmarks.selected_index > 0 {
+                                self.bookmarks.selected_index -= 1;
+                            }
+                        }
+                        KeyCode::Down => {
+                            if self.bookmarks.selected_index < self.bookmarks.bookmarks.len() - 1 {
+                                self.bookmarks.selected_index += 1;
+                            }
+                        }
+                        KeyCode::Enter => self.bookmarks.open_browser(),
+                        KeyCode::Esc => break,
+                        _ => {}
+                    },
+                    WindowMode::Tab => match self.selected_tab {
+                        TabMode::Schedule => match key.code {
+                            KeyCode::Esc => match self.schedules.mode {
+                                ScheduleMode::List => break,
+                                _ => CalendarKeyBind::execute(&self.token_info, key.code, &mut self.selected_tab, &mut self.schedules),
+                            },
+                            _ => CalendarKeyBind::execute(&self.token_info, key.code, &mut self.selected_tab, &mut self.schedules),
+                        }
+                        TabMode::VirtualBox => match key.code {
+                            KeyCode::Up => {
+                                if self.virtualbox.selected_index > 0 {
+                                    self.virtualbox.selected_index -= 1;
                                 }
                             }
+                            KeyCode::Down => {
+                                if self.virtualbox.selected_index < self.virtualbox.machines.len() - 1 {
+                                    self.virtualbox.selected_index += 1;
+                                }
+                            }
+                            KeyCode::Enter => self.virtualbox.open_virtualbox(),
+                            KeyCode::Tab => self.selected_tab = TabMode::Tab3,
+                            KeyCode::Esc => break,
                             _ => {}
                         }
-                    }
-                    KeyCode::Up => {
-                        match self.window_mode {
-                            WindowMode::Bookmark => {
-                                if self.bookmarks.selected_index > 0 {
-                                    self.bookmarks.selected_index -= 1;
-                                }
-                            }
-                            WindowMode::Tab => {
-                                match self.selected_tab {
-                                    TabMode::VirtualBox => {
-                                        if self.virtualbox.selected_index > 0 {
-                                            self.virtualbox.selected_index -= 1;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
+                        TabMode::Tab3 => match key.code {
+                            KeyCode::Tab => self.selected_tab = TabMode::Schedule,
+                            KeyCode::Esc => break,
+                            _ => {}
                         }
-                    }
-                    KeyCode::Down => {
-                        match self.window_mode {
-                            WindowMode::Bookmark => {
-                                if self.bookmarks.selected_index < self.bookmarks.bookmarks.len() - 1 {
-                                    self.bookmarks.selected_index += 1;
-                                }
-                            }
-                            WindowMode::Tab => {
-                                match self.selected_tab {
-                                    TabMode::VirtualBox => {
-                                        if self.virtualbox.selected_index < self.virtualbox.machines.len() - 1 {
-                                            self.virtualbox.selected_index += 1;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Enter => {
-                        match self.window_mode {
-                            WindowMode::Bookmark => {
-                                self.bookmarks.open_browser();
-                            }
-                            WindowMode::Tab => {
-                                match self.selected_tab {
-                                    TabMode::VirtualBox => self.virtualbox.open_virtualbox(),
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Esc => break,
-                    _ => {}
+                    },
                 }
             }
         }
@@ -145,7 +143,7 @@ impl App {
     fn draw(&self, frame: &mut Frame) {
         let main_layout = Layout::vertical([
             Constraint::Min(0),
-            Constraint::Length(2),
+            Constraint::Length(4),
         ]);
         let [app_area, footer_area] = main_layout.areas(frame.area());
 
@@ -210,14 +208,14 @@ impl App {
         frame.render_widget(tabs, header_area);
 
         match self.selected_tab {
-            // TabMode::VirtualBox => "  VirtualBox  ",
-            TabMode::VirtualBox => self.render_virtualbox(frame, app_area),
-            TabMode::Tab2 => {},
+            TabMode::Schedule => CalendarUI::schedule_area(frame, app_area, &self.window_mode, &self.schedules),
+            TabMode::VirtualBox => self.render_virtualbox_area(frame, app_area),
             TabMode::Tab3 => {},
         }
     }
 
-    fn render_virtualbox(&self, frame: &mut Frame, area: Rect) {
+
+    fn render_virtualbox_area(&self, frame: &mut Frame, area: Rect) {
         let machine_list_item = 
             self.virtualbox.machines.iter().enumerate().map(|(i, machine)| {
                 if i == self.virtualbox.selected_index {
@@ -251,8 +249,20 @@ impl App {
     }
 
     fn render_footer_area(&self, frame: &mut Frame, area: Rect) {
+        let line1 = Line::from(vec![
+            Span::raw("  Esc: Quit, F1: Bookmark, F2: Tab, Tab: Move Tab"),
+        ]);
+        let line2 = Line::from(vec![
+            Span::raw("  Bookmark   -> Enter: Open Browser"),
+        ]);
+        let line3 = Line::from(vec![
+            Span::raw("  VirtualBox -> Enter: Open Machine"),
+        ]);
+        let line4 = Line::from(vec![
+            Span::raw("  Schedule   -> Enter: Open Google Calendar, Shift+N: New Schedule, Shift+C: Delete Schedule"),
+        ]);
         let footer_text = Paragraph::new(
-            "  Quit: Esc, F1: Bookmark, F2: Tab, Tab: Move Tab\n  Enter: Bookmark -> Open Browser, VirtualBox -> Open Machine",
+            vec![line1, line2, line3, line4]
         );
         frame.render_widget(footer_text, area);
     }
