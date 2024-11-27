@@ -7,13 +7,12 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::app::bookmark::form::{Form, Mode as FormMode};
 use crate::app::ui::{
     help::Help,
     select_list::SelectList,
     pane::Pane,
 };
-
-use super::form::{Form, Mode as FormMode};
 
 const JSON_PATH: &str = "bookmark.json";
 const BROWSER_PATH: &str = "/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe";

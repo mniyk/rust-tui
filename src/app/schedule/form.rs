@@ -10,14 +10,20 @@ use crate::app::ui::{
     input::Input,
 };
 
-const FORM_TITLE: &str = "Add Schedule";
 const SUMMARY_TITLE: &str = "Summary";
 const START_TITLE: &str = "Start";
 const END_TITLE: &str = "End";
 const DESCRIPTION_TITLE: &str = "Description";
 
 #[derive(Debug)]
+pub enum Mode {
+    New,
+    Edit,
+}
+
+#[derive(Debug)]
 pub struct Form {
+    pub mode: Mode,
     pub popup: Popup,
     pub summary_pane: Pane,
     pub summary: Input,
@@ -32,7 +38,8 @@ pub struct Form {
 impl Form {
     pub fn new() -> Self {
         Self {
-            popup: Popup::new(FORM_TITLE),
+            mode: Mode::New,
+            popup: Popup::new(""),
             summary_pane: Pane::new(SUMMARY_TITLE),
             summary: Input::new(),
             start_pane: Pane::new(START_TITLE),
