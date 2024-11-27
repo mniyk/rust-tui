@@ -2,7 +2,7 @@ mod app;
 
 use color_eyre::Result;
 
-use app::App;
+use app::app::App;
 use app::google::authentication::Authentication;
 
 fn main() -> Result<()> {
