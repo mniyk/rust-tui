@@ -278,16 +278,22 @@ impl<'a> App<'a> {
             frame,
             vec![
                 "[ Select Schedule ]",
-                "Open Schedule  : Enter", 
-                "Focus Move Up  : Up, Right", 
-                "Focus Move Down: Down, Left", 
-                "F2             : Open/Close Add Schedule",
+                "Open Schedule           : Enter", 
+                "Focus Move Up           : Up, Right", 
+                "Focus Move Down         : Down, Left", 
+                "Execute Delete Schedule : Shift+D",
+                "Open/Close Add Schedule : F2",
+                "Open/Close Edit Schedule: F3",
                 "",
                 "[ Add Schedule ]",
-                "Move Input Form          : F2",
+                "Move Input Form          : Tab",
                 "Execute Add Schedule     : F12",
-                "Execute Delete Schedule  : Shift+D",
                 "Start/End Datetime Format: yyyy/mm/ddThh/mm/ss",
+                "",
+                "[ Edit Schedule ]",
+                "Move Input Form          : Tab",
+                "Execute Edit Schedule    : F12",
+                "Start/End Datetime Format: yyyy/mm/ddThh/mm/ss+09:00",
             ]
         );
         self.schedules.form.render(frame);

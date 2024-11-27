@@ -9,7 +9,7 @@ use ratatui::{
 };
 use serde_json::json;
 
-use crate::app::schedule::form::Form;
+use crate::app::schedule::form::{Form, Mode as FormMode};
 use crate::app::ui::{
     help::Help,
     select_list::SelectList,
@@ -29,6 +29,7 @@ pub struct Schedule {
     pub start: String, 
     pub end: String,
     pub link: String,
+    pub description: String,
 }
 
 impl Schedule {
@@ -41,7 +42,7 @@ impl Schedule {
 pub struct Schedules<'a> {
     pub pane: Pane,
     pub schedules: Vec<Schedule>,
-    pub select_list: SelectList<'a>,
+    pub list: SelectList<'a>,
     pub form: Form,
     pub help: Help,
 }
@@ -51,7 +52,7 @@ impl<'a> Schedules<'a> {
         Self {
             pane: Pane::new(APP_TITLE),
             schedules: Self::read(token_info),
-            select_list: SelectList::new(),
+            list: SelectList::new(),
             form: Form::new() ,
             help: Help::new(HELP_TITLE),
         }
@@ -80,6 +81,7 @@ impl<'a> Schedules<'a> {
                     for item in items {
                         let id = item["id"].to_string().replace("\"", "");
                         let summary = item["summary"].as_str().unwrap_or("No summary");
+                        let description = item["description"].as_str().unwrap_or("No discription");
                         let start = item["start"]["dateTime"]
                             .as_str()
                             .or_else(|| item["start"]["date"].as_str())
@@ -96,6 +98,7 @@ impl<'a> Schedules<'a> {
                             start: start.to_string(),
                             end: end.to_string(),
                             link,
+                            description: description.to_string(),
                         };
 
                         schedules.push(schedule);
@@ -144,11 +147,11 @@ impl<'a> Schedules<'a> {
         })
         .collect();
 
-        self.select_list.render(frame, pane, list);
+        self.list.render(frame, pane, list);
     }
 
     pub fn open(&self) {
-        let schedule: String = self.schedules[self.select_list.index].link.to_string();
+        let schedule: String = self.schedules[self.list.index].link.to_string();
 
         Command::new(BROWSER_PATH)
             .arg(schedule)
@@ -184,12 +187,44 @@ impl<'a> Schedules<'a> {
         self.form.all_clear();
     }
 
-    pub fn delete(&mut self, token_info: &TokenInfo) {
-        let schedule = &self.schedules[self.select_list.index];
+    pub fn edit(&mut self, token_info: &TokenInfo) {
+        let client = Client::new();
+
+        let schedule = &self.schedules[self.list.index];
+
+        let event = json!({
+            "summary": self.form.summary.text.to_string(),
+            "description": self.form.description.text.to_string(),
+            "start": {
+                "dateTime": self.form.start.text.to_string(), 
+                "timeZone": "Asia/Tokyo".to_string(),
+            },
+            "end": {
+                "dateTime": self.form.end.text.to_string(), 
+                "timeZone": "Asia/Tokyo".to_string(),
+            },
+        });
 
         let url = format!("{}/{}", BASE_API, schedule.id);
 
+        let _ = client
+            .put(url)
+            .bearer_auth(&token_info.access_token)
+            .json(&event)
+            .send();
+
+        self.schedules = Self::read(token_info);
+
+        self.form.popup.active = false;
+        self.form.all_clear();
+    }
+
+    pub fn delete(&mut self, token_info: &TokenInfo) {
         let client = Client::new();
+
+        let schedule = &self.schedules[self.list.index];
+
+        let url = format!("{}/{}", BASE_API, schedule.id);
 
         let _ = client
             .delete(url)
@@ -202,22 +237,43 @@ impl<'a> Schedules<'a> {
     pub fn key_binding(&mut self, key: KeyEvent, token_info: &TokenInfo) {
         match key.code {
             KeyCode::F(1) => {
-                if !self.form.popup.active {
+                if !self.form.popup.active & !self.form.popup.active {
                     self.help.popup.active = true;
                     self.form.popup.active = false;
                 }
             },
             KeyCode::F(2) => { 
-                if !self.help.popup.active {
+                if !self.help.popup.active & !self.form.popup.active {
+                    self.form.popup.title = "Add Schedule".to_string();
+                    self.form.mode = FormMode::New;
                     self.help.popup.active = false;
                     self.form.popup.active = true;
                     self.form.all_clear();
                     self.form.active_summary();
                 }
             },
+            KeyCode::F(3) => { 
+                if !self.help.popup.active & !self.form.popup.active && self.schedules.len() > 0 {
+                    self.form.popup.title = "Edit Schedule".to_string();
+                    self.form.mode = FormMode::Edit;
+                    self.help.popup.active = false;
+                    self.form.popup.active = true;
+                    self.form.all_clear();
+                    self.form.active_summary();
+
+                    let schedule = &self.schedules[self.list.index];
+                    self.form.summary.text = schedule.summary.to_string();
+                    self.form.start.text = schedule.start.to_string();
+                    self.form.end.text = schedule.end.to_string();
+                    self.form.description.text = schedule.description.to_string();
+                }
+            },
             KeyCode::F(12) => {
                 if self.form.popup.active {
-                    self.add(token_info);
+                    match self.form.mode {
+                        FormMode::New => self.add(token_info),
+                        FormMode::Edit => self.edit(token_info),
+                    }
                 }
             }
             KeyCode::Enter => {
@@ -230,7 +286,7 @@ impl<'a> Schedules<'a> {
                 if self.form.popup.active {
                     self.form.key_binding(key);
                 } else if !self.help.popup.active {
-                    self.select_list.key_binding(key);
+                    self.list.key_binding(key);
                 }
             }
         }
