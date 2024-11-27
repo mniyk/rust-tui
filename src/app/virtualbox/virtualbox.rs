@@ -1,23 +1,41 @@
 use core::str;
 use std::process::Command;
 
+use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent},
+    layout::Rect, 
+    Frame,
+};
+
+use crate::app::ui::{
+    help::Help,
+    pane::Pane,
+    select_list::SelectList,
+};
+
 const VIRTUALBOX_PATH: &str = "/mnt/c/Program Files/Oracle/VirtualBox/VBoxManage.exe";
+const APP_TITLE: &str = "VirtualBox";
+const HELP_TITLE: &str = "Help VirtualBox";
 
 #[derive(Debug)]
-pub struct VirtualBox {
-    pub selected_index: usize,
+pub struct VirtualBox<'a> {
+    pub pane: Pane,
     pub machines: Vec<String>,
+    pub select_list: SelectList<'a>,
+    pub help: Help,
 }
 
-impl VirtualBox {
+impl<'a> VirtualBox<'a> {
     pub fn new() -> Self {
         Self {
-            selected_index: 0,
-            machines: Self::read_machines(),
+            pane: Pane::new(APP_TITLE),
+            machines: Self::read(),
+            select_list: SelectList::new(),
+            help: Help::new(HELP_TITLE),
         }
     }
 
-    fn read_machines() -> Vec<String> {
+    fn read() -> Vec<String> {
         let output = Command::new(VIRTUALBOX_PATH)
             .arg("list")
             .arg("vms")
@@ -42,8 +60,14 @@ impl VirtualBox {
             .collect()
     }
 
-    pub fn open_virtualbox(&self) {
-        let machine = self.machines[self.selected_index].to_string();
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let pane = self.pane.render(frame, area);
+
+        self.select_list.render(frame, pane, self.machines.clone());
+    }
+
+    pub fn open(&self) {
+        let machine = self.machines[self.select_list.index].to_string();
 
         Command::new(VIRTUALBOX_PATH)
             .arg("startvm")
@@ -52,5 +76,13 @@ impl VirtualBox {
             .arg("gui")
             .output()
             .expect("Failed to execute open_virtualbox");
+    }
+
+    pub fn key_binding(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::F(1) => self.help.popup.active = true,
+            KeyCode::Enter => self.open(),
+            _ => self.select_list.key_binding(key),
+        }
     }
 }
