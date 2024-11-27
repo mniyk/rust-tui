@@ -76,9 +76,20 @@ impl<'a> App<'a> {
                 
                 match self.window_mode {
                     WindowMode::Bookmark => match key.code {
+                        KeyCode::Tab => {
+                            if self.bookmarks.form.popup.active {
+                                if self.bookmarks.form.title.active {
+                                    self.bookmarks.form.active_url()
+                                } else if self.bookmarks.form.url.active {
+                                    self.bookmarks.form.active_title()
+                                }
+                            }
+                        }
                         KeyCode::Esc => {
                             if self.bookmarks.help.popup.active {
                                 self.bookmarks.help.popup.active = false;
+                            } else if self.bookmarks.form.popup.active {
+                                self.bookmarks.form.popup.active = false;
                             } else {
                                 break
                             }
@@ -245,11 +256,23 @@ impl<'a> App<'a> {
             frame, 
             vec![
                 "[ Select Bookmark ]",
-                "Open Bookmark  : Enter", 
-                "Focus Move Up  : Up, Right", 
-                "Focus Move Down: Down, Left", 
+                "Open Bookmark           : Enter", 
+                "Focus Move Up           : Up, Right", 
+                "Focus Move Down         : Down, Left", 
+                "Execute Delete Schedule : Shift+D",
+                "Open/Close Add Bookmark : F2",
+                "Open/Close Edit Bookmark: F3",
+                "",
+                "[ Add Bookmark ]",
+                "Move Input Form     : Tab", 
+                "Execute Add Bookmark: F12", 
+                "",
+                "[ Edit Bookmark ]",
+                "Move Input Form      : Tab", 
+                "Execute Edit Bookmark: F12", 
             ]
         );
+        self.bookmarks.form.render(frame);
 
         self.schedules.help.render(
             frame,

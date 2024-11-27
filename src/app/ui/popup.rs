@@ -8,7 +8,7 @@ use ratatui::{
 
 #[derive(Debug)]
 pub struct Popup {
-    title: String,
+    pub title: String,
     pub active: bool,
 }
 
