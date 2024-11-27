@@ -46,8 +46,10 @@ impl<'a> SelectList<'a> {
     }
 
     pub fn down(&mut self) {
-        if self.index < self.list.len() - 1 {
-            self.index += 1;
+        if self.list.len() > 0 {
+            if self.index < self.list.len() - 1 {
+                self.index += 1;
+            }
         }
     }
 
