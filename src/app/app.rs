@@ -11,6 +11,7 @@ use ratatui::{
 
 use crate::app::bookmark::bookmark::Bookmarks;
 use crate::app::schedule::schedule::Schedules;
+use crate::app::task::task::Tasks;
 use crate::app::virtualbox::virtualbox::VirtualBox;
 use crate::app::google::authentication::TokenInfo;
 
@@ -23,16 +24,16 @@ pub enum WindowMode {
 #[derive(Debug, Clone)]
 pub enum TabMode {
     Schedule,
+    Tasks,
     VirtualBox,
-    Tab3,
 }
 
 impl From<TabMode> for Option<usize> {
     fn from(tab: TabMode) -> Self {
         match tab {
             TabMode::Schedule => Some(0),
-            TabMode::VirtualBox => Some(1),
-            TabMode::Tab3 => Some(2),
+            TabMode::Tasks => Some(1),
+            TabMode::VirtualBox => Some(2),
         }
     }
 }
@@ -43,9 +44,10 @@ pub struct App<'a> {
     selected_tab: TabMode,
     tab_labels: Vec<Line<'static>>,
     bookmarks: Bookmarks<'a>,
+    schedules: Schedules<'a>,
+    tasks: Tasks<'a>,
     virtualbox: VirtualBox<'a>,
     token_info: TokenInfo,
-    schedules: Schedules<'a>,
 }
 
 impl<'a> App<'a> {
@@ -55,13 +57,14 @@ impl<'a> App<'a> {
             selected_tab: TabMode::Schedule,
             tab_labels: vec![
                 Line::from("Schedule"),
+                Line::from("Task"),
                 Line::from("VirtualBox"),
-                Line::from("Tab 3"),
             ],
             bookmarks: Bookmarks::new(),
+            schedules: Schedules::new(token_info), 
+            tasks: Tasks::new(token_info),
             virtualbox: VirtualBox::new(),
             token_info: token_info.clone(),
-            schedules: Schedules::new(token_info), 
         }
     }
 
@@ -100,7 +103,7 @@ impl<'a> App<'a> {
                         TabMode::Schedule => match key.code {
                             KeyCode::Tab => {
                                 if !self.schedules.help.popup.active & !self.schedules.form.popup.active {
-                                    self.selected_tab = TabMode::VirtualBox;
+                                    self.selected_tab = TabMode::Tasks;
                                 }
 
                                 if self.schedules.form.popup.active {
@@ -126,10 +129,37 @@ impl<'a> App<'a> {
                             }
                             _ => self.schedules.key_binding(key, &self.token_info),
                         }
+                        TabMode::Tasks => match key.code {
+                            KeyCode::Tab => {
+                                if !self.tasks.help.popup.active & !self.tasks.form.popup.active {
+                                    self.selected_tab = TabMode::VirtualBox;
+                                }
+
+                                if self.tasks.form.popup.active {
+                                    if self.tasks.form.title.active {
+                                        self.tasks.form.active_notes();
+                                    } else if self.tasks.form.notes.active {
+                                        self.tasks.form.active_due();
+                                    } else if self.tasks.form.due.active {
+                                        self.tasks.form.active_title();
+                                    }
+                                }
+                            },
+                            KeyCode::Esc => {
+                                if self.tasks.help.popup.active {
+                                    self.tasks.help.popup.active = false;
+                                } else if self.tasks.form.popup.active {
+                                    self.tasks.form.popup.active = false;
+                                } else {
+                                    break
+                                }
+                            }
+                            _ => self.tasks.key_binding(key, &self.token_info),
+                        }
                         TabMode::VirtualBox => match key.code {
                             KeyCode::Tab => {
                                 if !self.virtualbox.help.popup.active {
-                                    self.selected_tab = TabMode::Tab3;
+                                    self.selected_tab = TabMode::Schedule;
                                 }
                             },
                             KeyCode::Esc => {
@@ -140,11 +170,6 @@ impl<'a> App<'a> {
                                 }
                             },
                             _ => self.virtualbox.key_binding(key),
-                        }
-                        TabMode::Tab3 => match key.code {
-                            KeyCode::Tab => self.selected_tab = TabMode::Schedule,
-                            KeyCode::Esc => break,
-                            _ => {}
                         }
                     },
                 }
@@ -173,23 +198,27 @@ impl<'a> App<'a> {
             WindowMode::Bookmark => {
                 self.bookmarks.pane.active = true;
                 self.schedules.pane.active = false;
+                self.tasks.pane.active = false;
                 self.virtualbox.pane.active = false;
             },
             WindowMode::Tab => match self.selected_tab {
                 TabMode::Schedule => {
                     self.bookmarks.pane.active = false;
                     self.schedules.pane.active = true;
+                    self.tasks.pane.active = false;
+                    self.virtualbox.pane.active = false;
+                },
+                TabMode::Tasks => {
+                    self.bookmarks.pane.active = false;
+                    self.schedules.pane.active = false;
+                    self.tasks.pane.active = true;
                     self.virtualbox.pane.active = false;
                 },
                 TabMode::VirtualBox => {
                     self.bookmarks.pane.active = false;
                     self.schedules.pane.active = false;
+                    self.tasks.pane.active = false;
                     self.virtualbox.pane.active = true;
-                },
-                _ => {
-                    self.bookmarks.pane.active = false;
-                    self.schedules.pane.active = false;
-                    self.virtualbox.pane.active = false;
                 },
             },
         }
@@ -237,8 +266,8 @@ impl<'a> App<'a> {
 
         match self.selected_tab {
             TabMode::Schedule => self.schedules.render(frame, app_area),
+            TabMode::Tasks => self.tasks.render(frame, app_area),
             TabMode::VirtualBox => self.virtualbox.render(frame, app_area),
-            TabMode::Tab3 => {},
         }
     }
 
@@ -288,15 +317,40 @@ impl<'a> App<'a> {
                 "[ Add Schedule ]",
                 "Move Input Form          : Tab",
                 "Execute Add Schedule     : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh/mm/ss",
+                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss",
                 "",
                 "[ Edit Schedule ]",
                 "Move Input Form          : Tab",
                 "Execute Edit Schedule    : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh/mm/ss+09:00",
+                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss+09:00",
             ]
         );
         self.schedules.form.render(frame);
+
+        self.tasks.help.render(
+            frame,
+            vec![
+                "[ Select Task ]",
+                "Open Task            : Enter", 
+                "Focus Move Up        : Up, Right", 
+                "Focus Move Down      : Down, Left", 
+                "Execute Complete Task: Shift+C",
+                "Execute Delete Task  : Shift+D",
+                "Open/Close Add Task  : F2",
+                "Open/Close Edit Task : F3",
+                "",
+                "[ Add Task ]",
+                "Move Input Form          : Tab",
+                "Execute Add Task         : F12",
+                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss",
+                "",
+                "[ Edit Task ]",
+                "Move Input Form          : Tab",
+                "Execute Edit Task        : F12",
+                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss.000Z",
+            ]
+        );
+        self.tasks.form.render(frame);
 
         self.virtualbox.help.render(
             frame,
