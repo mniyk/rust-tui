@@ -139,6 +139,7 @@ impl Authentication {
         let (auth_url, _) = client
             .authorize_url(|| oauth2::CsrfToken::new_random())
             .add_scope(oauth2::Scope::new("https://www.googleapis.com/auth/calendar".to_string()))
+            .add_scope(oauth2::Scope::new("https://www.googleapis.com/auth/tasks".to_string()))
             .url();
 
         println!("Go to the following URL and authorize the application: {}", auth_url);
