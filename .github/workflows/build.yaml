@@ -1,6 +1,9 @@
 name: Build and Release
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -24,8 +27,8 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: target/release/my_binary
-        asset_name: my_binary
+        asset_path: target/release/rust-tui
+        asset_name: rust-tui
         asset_content_type: application/octet-stream
 
     - name: Create GitHub Release
