@@ -11,12 +11,13 @@ on:
       - main
 
 jobs:
+  permissions:
+    contents: write
+    pull-requests: write
+    repository-projects: write
+
   build-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      repository-projects: write
 
     steps:
     - name: Checkout repository
