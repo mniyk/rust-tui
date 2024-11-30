@@ -245,22 +245,3 @@ impl<'a> Tasks<'a> {
         }
     }
 }
-
-
-use std::fs::OpenOptions;
-use std::io::Write;
-
-fn send_terminal(message: String) {
-    let terminal_path = "/dev/pts/3";
-
-    match OpenOptions::new().write(true).open(terminal_path) {
-        Ok(mut terminal) => {
-            if let Err(e) =  writeln!(terminal, "{:?}", message) {
-                eprintln!("Failed to write to {}: {}", terminal_path, e);
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to open {}: {}", terminal_path, e);
-        }
-    }
-}
