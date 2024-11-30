@@ -38,7 +38,7 @@ jobs:
         draft: false
         prerelease: false
         body: "Automated release for version ${{ github.ref_name }}"
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
