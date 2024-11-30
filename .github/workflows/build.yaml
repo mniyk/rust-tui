@@ -13,6 +13,9 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    contents: write
+    pull-requests: write
+    repository-projects: write
 
     steps:
     - name: Checkout repository
