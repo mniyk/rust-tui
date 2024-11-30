@@ -10,7 +10,7 @@ on:
     branches:
       - main
 
-permissions: write-all
+permissions: read-all
 
 jobs:
   build-and-release:
