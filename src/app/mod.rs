@@ -1,4 +1,5 @@
 pub mod app;
+pub mod config;
 pub mod bookmark;
 pub mod google;
 pub mod schedule;

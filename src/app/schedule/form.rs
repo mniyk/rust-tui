@@ -11,8 +11,8 @@ use crate::app::ui::{
 };
 
 const SUMMARY_TITLE: &str = "Summary";
-const START_TITLE: &str = "Start";
-const END_TITLE: &str = "End";
+const START_TITLE: &str = "Start (yyyy-mm-ddThh:mm:ss)";
+const END_TITLE: &str = "End   (yyyy-mm-ddThh:mm:ss)";
 const DESCRIPTION_TITLE: &str = "Description";
 
 #[derive(Debug)]

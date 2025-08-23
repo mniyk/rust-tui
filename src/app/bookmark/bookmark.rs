@@ -7,6 +7,7 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::app::config::get_config;
 use crate::app::bookmark::form::{Form, Mode as FormMode};
 use crate::app::ui::{
     help::Help,
@@ -15,7 +16,6 @@ use crate::app::ui::{
 };
 
 const JSON_PATH: &str = "bookmark.json";
-const BROWSER_PATH: &str = "/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe";
 const APP_TITLE: &str = "Bookmark";
 const HELP_TITLE: &str = "Help Bookmark";
 
@@ -74,7 +74,9 @@ impl<'a> Bookmarks<'a> {
     pub fn open(&self) {
         let bookmark = self.bookmarks[self.list.index].url.to_string();
 
-        Command::new(BROWSER_PATH)
+        let browser_path = &get_config().browser_path;
+
+        Command::new(browser_path)
             .arg(bookmark)
             .output()
             .expect("Failed to execute open()");
@@ -125,8 +127,10 @@ impl<'a> Bookmarks<'a> {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.help.popup.active = true;
                     self.form.popup.active = false;
+                } else {
+                    self.help.popup.active = false;
                 }
-            }
+            },
             KeyCode::F(2) => {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.form.popup.title = "Add Bookmark".to_string();
@@ -135,8 +139,11 @@ impl<'a> Bookmarks<'a> {
                     self.form.popup.active = true;
                     self.form.all_clear();
                     self.form.active_title();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
                 }
-            }
+            },
             KeyCode::F(3) => {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.form.popup.title = "Edit Bookmark".to_string();
@@ -149,8 +156,11 @@ impl<'a> Bookmarks<'a> {
                     let bookmark = &self.bookmarks[self.list.index];
                     self.form.title.text = bookmark.title.to_string();
                     self.form.url.text = bookmark.url.to_string();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
                 }
-            }
+            },
             KeyCode::F(12) => {
                 if self.form.popup.active {
                     match self.form.mode {
@@ -158,7 +168,7 @@ impl<'a> Bookmarks<'a> {
                         FormMode::Edit => self.edit(),
                     }
                 }
-            }
+            },
             KeyCode::Enter => {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.open();

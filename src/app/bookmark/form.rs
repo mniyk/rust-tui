@@ -58,8 +58,7 @@ impl Form {
                 Constraint::Length(3),
                 Constraint::Length(1),
             ]);
-            let [_, title_area, url_area, _] = 
-                layout.areas(form_area);
+            let [_, title_area, url_area, _] = layout.areas(form_area);
 
             let title_pane = self.title_pane.render(frame, title_area);
             self.title.render(frame, title_pane);

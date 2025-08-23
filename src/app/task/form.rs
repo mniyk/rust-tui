@@ -12,7 +12,7 @@ use crate::app::ui::{
 
 const TITLE_TITLE: &str = "Title";
 const NOTES_TITLE: &str = "Notes";
-const DUE_TITLE: &str = "Due";
+const DUE_TITLE: &str = "Due (yyyy-mm-ddThh:mm:ss)";
 
 #[derive(Debug)]
 pub enum Mode {

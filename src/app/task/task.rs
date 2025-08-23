@@ -1,13 +1,15 @@
 use std::process::Command;
 
 use reqwest::blocking::Client;
-use chrono::{Utc, FixedOffset, TimeZone};
 use ratatui::{
-    crossterm::event::{KeyCode, KeyEvent}, layout::Rect, widgets::block::Title, Frame
+    crossterm::event::{KeyCode, KeyEvent}, 
+    layout::Rect, 
+    Frame
 };
 use serde::Serialize;
 use serde_json::json;
 
+use crate::app::config::get_config;
 use crate::app::task::form::{Form, Mode as FormMode};
 use crate::app::ui::{
     help::Help,
@@ -17,7 +19,6 @@ use crate::app::ui::{
 use crate::app::google::authentication::TokenInfo;
 
 const BASE_API: &str = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
-const BROWSER_PATH: &str = "/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe";
 const APP_TITLE: &str = "Task";
 const HELP_TITLE: &str = "Help Schedule";
 
@@ -138,7 +139,6 @@ impl<'a> Tasks<'a> {
             .json(&task)
             .send();
 
-
         self.tasks = Self::read(token_info);
 
         self.form.popup.active = false;
@@ -146,7 +146,9 @@ impl<'a> Tasks<'a> {
     }
 
     pub fn open(&self) {
-        Command::new(BROWSER_PATH)
+        let browser_path = &get_config().browser_path;
+
+        Command::new(browser_path)
             .arg("https://calendar.google.com/calendar/u/0/r/tasks")
             .output()
             .expect("Failed to execute open_schedule");
@@ -190,9 +192,11 @@ impl<'a> Tasks<'a> {
     pub fn key_binding(&mut self, key: KeyEvent, token_info: &TokenInfo) {
         match key.code {
             KeyCode::F(1) => {
-                if !self.form.popup.active & !self.form.popup.active {
+                if !self.help.popup.active & !self.form.popup.active {
                     self.help.popup.active = true;
                     self.form.popup.active = false;
+                } else {
+                    self.help.popup.active = false;
                 }
             },
             KeyCode::F(2) => { 
@@ -203,6 +207,9 @@ impl<'a> Tasks<'a> {
                     self.form.popup.active = true;
                     self.form.all_clear();
                     self.form.active_title();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
                 }
             },
             KeyCode::F(3) => { 
@@ -214,10 +221,13 @@ impl<'a> Tasks<'a> {
                     self.form.all_clear();
                     self.form.active_title();
 
-                    let schedule = &self.tasks[self.list.index];
-                    self.form.title.text = schedule.title.to_string();
-                    self.form.notes.text = schedule.notes.to_string();
-                    self.form.due.text = schedule.due.to_string();
+                    let task = &self.tasks[self.list.index];
+                    self.form.title.text = task.title.to_string();
+                    self.form.notes.text = task.notes.to_string();
+                    self.form.due.text = task.due.to_string();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
                 }
             },
             KeyCode::F(12) => {
@@ -227,7 +237,7 @@ impl<'a> Tasks<'a> {
                         FormMode::Edit => self.edit(token_info),
                     }
                 }
-            }
+            },
             KeyCode::Enter => {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.open();
@@ -235,6 +245,9 @@ impl<'a> Tasks<'a> {
             },
             KeyCode::Char('C') => self.complete(token_info),
             KeyCode::Char('D') => self.delete(token_info),
+            KeyCode::Char('R') => {
+                self.tasks = Self::read(token_info);
+            },
             _ => {
                 if self.form.popup.active {
                     self.form.key_binding(key);

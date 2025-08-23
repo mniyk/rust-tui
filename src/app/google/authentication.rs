@@ -1,5 +1,8 @@
 use std::fs;
-use std::io::{self, Read, Write};
+use std::net::TcpListener;
+use std::process::Command;
+use std::io::{Read, Write};  
+use url::Url;
 
 use oauth2::{
     AuthUrl, 
@@ -17,6 +20,8 @@ use serde::{
     Serialize,
     Deserialize,
 };
+
+use crate::app::config::get_config;
 
 #[derive(Deserialize)]
 pub struct Credentials {
@@ -50,7 +55,12 @@ impl Authentication {
     }
 
     fn read_token() -> TokenInfo {
-        let credentials: Credentials = Self::read_credentials().unwrap();
+        let credentials: Credentials = match Self::read_credentials() {
+            Ok(creds) => creds,
+            Err(err) => {
+                panic!("Failed to read credentials: {:?}", err);
+            }
+        };
 
         let auth_url = match AuthUrl::new(credentials.installed.auth_uri.clone()) {
             Ok(url) => url,
@@ -144,12 +154,44 @@ impl Authentication {
 
         println!("Go to the following URL and authorize the application: {}", auth_url);
 
-        print!("Enter the authorization code: ");
-        io::stdout().flush()?;
-        let mut auth_code = String::new();
-        io::stdin().read_line(&mut auth_code)?;
-        let auth_code = auth_code.trim().to_string();
+        let browser_path = &get_config().browser_path;
 
-        Ok(auth_code)
+        Command::new(browser_path)
+            .arg(auth_url.as_str())
+            .output()
+            .expect("Failed to execute get_authentication_code()");
+
+        let listener = TcpListener::bind("127.0.0.1:8080")?;
+        for stream in listener.incoming() {
+            let mut stream = stream?;
+            let mut buffer = [0; 1024];
+
+            stream.read(&mut buffer)?;
+
+            let request = String::from_utf8_lossy(&buffer);
+
+            if let Some(line) = request.lines().next() {
+                if let Some(path_start) = line.find(' ') {
+                    if let Some(path_end) = line[path_start+1..].find(' ') {
+                        let path = &line[path_start+1..path_start+1+path_end];
+
+                        if let Ok(url) = Url::parse(&format!("http://localhost{}", path)) {
+                            if let Some(code) = url.query_pairs().find_map(|(k, v)| {
+                                if k == "code" { Some(v.into_owned()) } else { None }
+                            }) {
+                                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n
+                                    Authentication completed. You can close this window.";
+
+                                stream.write_all(response.as_bytes())?;
+
+                                return Ok(code);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Err("Failed to execute get_authentication_code()".into())
     }
 }

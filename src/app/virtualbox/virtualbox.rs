@@ -7,13 +7,13 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::config::get_config;
 use crate::app::ui::{
     help::Help,
     pane::Pane,
     select_list::SelectList,
 };
 
-const VIRTUALBOX_PATH: &str = "/mnt/c/Program Files/Oracle/VirtualBox/VBoxManage.exe";
 const APP_TITLE: &str = "VirtualBox";
 const HELP_TITLE: &str = "Help VirtualBox";
 
@@ -36,7 +36,9 @@ impl<'a> VirtualBox<'a> {
     }
 
     fn read() -> Vec<String> {
-        let output = Command::new(VIRTUALBOX_PATH)
+        let virtualbox_path = &get_config().virtualbox_path;
+
+        let output = Command::new(virtualbox_path)
             .arg("list")
             .arg("vms")
             .output()
@@ -69,7 +71,9 @@ impl<'a> VirtualBox<'a> {
     pub fn open(&self) {
         let machine = self.machines[self.select_list.index].to_string();
 
-        Command::new(VIRTUALBOX_PATH)
+        let virtualbox_path = &get_config().virtualbox_path;
+
+        Command::new(virtualbox_path)
             .arg("startvm")
             .arg(machine)
             .arg("--type")
@@ -80,8 +84,17 @@ impl<'a> VirtualBox<'a> {
 
     pub fn key_binding(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::F(1) => self.help.popup.active = true,
+            KeyCode::F(1) => {
+                if !self.help.popup.active {
+                    self.help.popup.active = true;
+                } else {
+                    self.help.popup.active = false;
+                }
+            },
             KeyCode::Enter => self.open(),
+            KeyCode::Char('R') => {
+                self.machines = Self::read();
+            },
             _ => self.select_list.key_binding(key),
         }
     }

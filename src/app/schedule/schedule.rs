@@ -9,6 +9,7 @@ use ratatui::{
 };
 use serde_json::json;
 
+use crate::app::config::get_config;
 use crate::app::schedule::form::{Form, Mode as FormMode};
 use crate::app::ui::{
     help::Help,
@@ -18,7 +19,6 @@ use crate::app::ui::{
 use crate::app::google::authentication::TokenInfo;
 
 const BASE_API: &str = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-const BROWSER_PATH: &str = "/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe";
 const APP_TITLE: &str = "Schedule";
 const HELP_TITLE: &str = "Help Schedule";
 
@@ -125,7 +125,7 @@ impl<'a> Schedules<'a> {
             _ => return ["".to_string(), "".to_string()],
         };
 
-        let time_max_naive = (now + chrono::Duration::days(1))
+        let time_max_naive = (now + chrono::Duration::days(7))
             .date_naive()
             .and_hms_opt(23, 59, 59)
             .expect("Failed to create time_max");
@@ -151,9 +151,14 @@ impl<'a> Schedules<'a> {
     }
 
     pub fn open(&self) {
+        if self.schedules.is_empty() {
+            return;
+        }
         let schedule: String = self.schedules[self.list.index].link.to_string();
 
-        Command::new(BROWSER_PATH)
+        let browser_path = &get_config().browser_path;
+
+        Command::new(browser_path)
             .arg(schedule)
             .output()
             .expect("Failed to execute open_schedule");
@@ -237,9 +242,11 @@ impl<'a> Schedules<'a> {
     pub fn key_binding(&mut self, key: KeyEvent, token_info: &TokenInfo) {
         match key.code {
             KeyCode::F(1) => {
-                if !self.form.popup.active & !self.form.popup.active {
+                if !self.help.popup.active & !self.form.popup.active {
                     self.help.popup.active = true;
                     self.form.popup.active = false;
+                } else {
+                    self.help.popup.active = false;
                 }
             },
             KeyCode::F(2) => { 
@@ -250,6 +257,9 @@ impl<'a> Schedules<'a> {
                     self.form.popup.active = true;
                     self.form.all_clear();
                     self.form.active_summary();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
                 }
             },
             KeyCode::F(3) => { 
@@ -266,6 +276,10 @@ impl<'a> Schedules<'a> {
                     self.form.start.text = schedule.start.to_string();
                     self.form.end.text = schedule.end.to_string();
                     self.form.description.text = schedule.description.to_string();
+                } else {
+                    self.form.popup.active = false;
+                    self.form.all_clear();
+
                 }
             },
             KeyCode::F(12) => {
@@ -275,13 +289,16 @@ impl<'a> Schedules<'a> {
                         FormMode::Edit => self.edit(token_info),
                     }
                 }
-            }
+            },
             KeyCode::Enter => {
                 if !self.help.popup.active & !self.form.popup.active {
                     self.open();
                 }
             },
             KeyCode::Char('D') => self.delete(token_info),
+            KeyCode::Char('R') => {
+                self.schedules = Self::read(token_info);
+            },
             _ => {
                 if self.form.popup.active {
                     self.form.key_binding(key);

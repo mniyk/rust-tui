@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEvent},
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
@@ -72,106 +72,108 @@ impl<'a> App<'a> {
         self.schedules.pane.active = true;
         
         loop {
-            terminal.draw(|frame| self.draw(frame))?;
+            terminal.draw(|frame: &mut Frame<'_>| self.draw(frame))?;
 
             if let Event::Key(key) = event::read()? {
                 self.change_mode(key);
                 
-                match self.window_mode {
-                    WindowMode::Bookmark => match key.code {
-                        KeyCode::Tab => {
-                            if self.bookmarks.form.popup.active {
-                                if self.bookmarks.form.title.active {
-                                    self.bookmarks.form.active_url()
-                                } else if self.bookmarks.form.url.active {
-                                    self.bookmarks.form.active_title()
+                if key.kind == KeyEventKind::Press {
+                    match self.window_mode {
+                        WindowMode::Bookmark => match key.code {
+                            KeyCode::Tab => {
+                                if self.bookmarks.form.popup.active {
+                                    if self.bookmarks.form.title.active {
+                                        self.bookmarks.form.active_url()
+                                    } else if self.bookmarks.form.url.active {
+                                        self.bookmarks.form.active_title()
+                                    }
                                 }
                             }
+                            KeyCode::Esc => {
+                                if self.bookmarks.help.popup.active {
+                                    self.bookmarks.help.popup.active = false;
+                                } else if self.bookmarks.form.popup.active {
+                                    self.bookmarks.form.popup.active = false;
+                                } else {
+                                    break
+                                }
+                            },
+                            _ => self.bookmarks.key_binding(key),
                         }
-                        KeyCode::Esc => {
-                            if self.bookmarks.help.popup.active {
-                                self.bookmarks.help.popup.active = false;
-                            } else if self.bookmarks.form.popup.active {
-                                self.bookmarks.form.popup.active = false;
-                            } else {
-                                break
+                        WindowMode::Tab => match self.selected_tab {
+                            TabMode::Schedule => match key.code {
+                                KeyCode::Tab => {
+                                    if !self.schedules.help.popup.active & !self.schedules.form.popup.active {
+                                        self.selected_tab = TabMode::Tasks;
+                                    }
+
+                                    if self.schedules.form.popup.active {
+                                        if self.schedules.form.summary.active {
+                                            self.schedules.form.active_start();
+                                        } else if self.schedules.form.start.active {
+                                            self.schedules.form.active_end();
+                                        } else if self.schedules.form.end.active {
+                                            self.schedules.form.active_description();
+                                        } else if self.schedules.form.description.active {
+                                            self.schedules.form.active_summary();
+                                        }
+                                    }
+                                },
+                                KeyCode::Esc => {
+                                    if self.schedules.help.popup.active {
+                                        self.schedules.help.popup.active = false;
+                                    } else if self.schedules.form.popup.active {
+                                        self.schedules.form.popup.active = false;
+                                    } else {
+                                        break
+                                    }
+                                }
+                                _ => self.schedules.key_binding(key, &self.token_info),
+                            }
+                            TabMode::Tasks => match key.code {
+                                KeyCode::Tab => {
+                                    if !self.tasks.help.popup.active & !self.tasks.form.popup.active {
+                                        self.selected_tab = TabMode::VirtualBox;
+                                    }
+
+                                    if self.tasks.form.popup.active {
+                                        if self.tasks.form.title.active {
+                                            self.tasks.form.active_notes();
+                                        } else if self.tasks.form.notes.active {
+                                            self.tasks.form.active_due();
+                                        } else if self.tasks.form.due.active {
+                                            self.tasks.form.active_title();
+                                        }
+                                    }
+                                },
+                                KeyCode::Esc => {
+                                    if self.tasks.help.popup.active {
+                                        self.tasks.help.popup.active = false;
+                                    } else if self.tasks.form.popup.active {
+                                        self.tasks.form.popup.active = false;
+                                    } else {
+                                        break
+                                    }
+                                }
+                                _ => self.tasks.key_binding(key, &self.token_info),
+                            }
+                            TabMode::VirtualBox => match key.code {
+                                KeyCode::Tab => {
+                                    if !self.virtualbox.help.popup.active {
+                                        self.selected_tab = TabMode::Schedule;
+                                    }
+                                },
+                                KeyCode::Esc => {
+                                    if self.virtualbox.help.popup.active {
+                                        self.virtualbox.help.popup.active = false;
+                                    } else {
+                                        break
+                                    }
+                                },
+                                _ => self.virtualbox.key_binding(key),
                             }
                         },
-                        _ => self.bookmarks.key_binding(key),
                     }
-                    WindowMode::Tab => match self.selected_tab {
-                        TabMode::Schedule => match key.code {
-                            KeyCode::Tab => {
-                                if !self.schedules.help.popup.active & !self.schedules.form.popup.active {
-                                    self.selected_tab = TabMode::Tasks;
-                                }
-
-                                if self.schedules.form.popup.active {
-                                    if self.schedules.form.summary.active {
-                                        self.schedules.form.active_start();
-                                    } else if self.schedules.form.start.active {
-                                        self.schedules.form.active_end();
-                                    } else if self.schedules.form.end.active {
-                                        self.schedules.form.active_description();
-                                    } else if self.schedules.form.description.active {
-                                        self.schedules.form.active_summary();
-                                    }
-                                }
-                            },
-                            KeyCode::Esc => {
-                                if self.schedules.help.popup.active {
-                                    self.schedules.help.popup.active = false;
-                                } else if self.schedules.form.popup.active {
-                                    self.schedules.form.popup.active = false;
-                                } else {
-                                    break
-                                }
-                            }
-                            _ => self.schedules.key_binding(key, &self.token_info),
-                        }
-                        TabMode::Tasks => match key.code {
-                            KeyCode::Tab => {
-                                if !self.tasks.help.popup.active & !self.tasks.form.popup.active {
-                                    self.selected_tab = TabMode::VirtualBox;
-                                }
-
-                                if self.tasks.form.popup.active {
-                                    if self.tasks.form.title.active {
-                                        self.tasks.form.active_notes();
-                                    } else if self.tasks.form.notes.active {
-                                        self.tasks.form.active_due();
-                                    } else if self.tasks.form.due.active {
-                                        self.tasks.form.active_title();
-                                    }
-                                }
-                            },
-                            KeyCode::Esc => {
-                                if self.tasks.help.popup.active {
-                                    self.tasks.help.popup.active = false;
-                                } else if self.tasks.form.popup.active {
-                                    self.tasks.form.popup.active = false;
-                                } else {
-                                    break
-                                }
-                            }
-                            _ => self.tasks.key_binding(key, &self.token_info),
-                        }
-                        TabMode::VirtualBox => match key.code {
-                            KeyCode::Tab => {
-                                if !self.virtualbox.help.popup.active {
-                                    self.selected_tab = TabMode::Schedule;
-                                }
-                            },
-                            KeyCode::Esc => {
-                                if self.virtualbox.help.popup.active {
-                                    self.virtualbox.help.popup.active = false;
-                                } else {
-                                    break
-                                }
-                            },
-                            _ => self.virtualbox.key_binding(key),
-                        }
-                    },
                 }
             
                 self.active_pane();
@@ -311,18 +313,19 @@ impl<'a> App<'a> {
                 "Focus Move Up           : Up, Right", 
                 "Focus Move Down         : Down, Left", 
                 "Execute Delete Schedule : Shift+D",
+                "Execute Update Schedule : Shift+R",
                 "Open/Close Add Schedule : F2",
                 "Open/Close Edit Schedule: F3",
                 "",
                 "[ Add Schedule ]",
                 "Move Input Form          : Tab",
                 "Execute Add Schedule     : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss",
+                "Start/End Datetime Format: yyyy-mm-ddThh:mm:ss",
                 "",
                 "[ Edit Schedule ]",
                 "Move Input Form          : Tab",
                 "Execute Edit Schedule    : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss+09:00",
+                "Start/End Datetime Format: yyyy-mm-ddThh:mm:ss",
             ]
         );
         self.schedules.form.render(frame);
@@ -336,18 +339,19 @@ impl<'a> App<'a> {
                 "Focus Move Down      : Down, Left", 
                 "Execute Complete Task: Shift+C",
                 "Execute Delete Task  : Shift+D",
+                "Execute Update Task  : Shift+R",
                 "Open/Close Add Task  : F2",
                 "Open/Close Edit Task : F3",
                 "",
                 "[ Add Task ]",
-                "Move Input Form          : Tab",
-                "Execute Add Task         : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss",
+                "Move Input Form     : Tab",
+                "Execute Add Task    : F12",
+                "Due Datetime Format : yyyy-mm-ddThh:mm:ss",
                 "",
                 "[ Edit Task ]",
-                "Move Input Form          : Tab",
-                "Execute Edit Task        : F12",
-                "Start/End Datetime Format: yyyy/mm/ddThh:mm:ss.000Z",
+                "Move Input Form     : Tab",
+                "Execute Edit Task   : F12",
+                "Due Datetime Format : yyyy-mm-ddThh:mm:ss",
             ]
         );
         self.tasks.form.render(frame);
