@@ -2,7 +2,7 @@
 TUI with Rust
 
 ## Image
-![ScreenShot](.\img\ScreenShot.png)
+![ScreenShot](./img/ScreenShot.png)
 
 ## Preparation
 
