@@ -2,6 +2,7 @@ pub mod app;
 pub mod config;
 pub mod bookmark;
 pub mod google;
+pub mod news;
 pub mod schedule;
 pub mod task;
 pub mod ui;

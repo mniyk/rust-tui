@@ -2,7 +2,7 @@ use ratatui::{
     crossterm::event::{KeyCode, KeyEvent}, 
     layout::Rect, 
     style::{Color, Style},
-    widgets::{List, ListItem},
+    widgets::{List, ListItem, ListState},
     Frame,
 };
 
@@ -10,34 +10,47 @@ use ratatui::{
 pub struct SelectList<'a> {
     pub index: usize,
     pub list: Vec<ListItem<'a>>,
+    pub state: ListState,
+    pub items: Vec<String>,
 }
 
 impl<'a> SelectList<'a> {
     pub fn new() -> Self {
+        let mut state = ListState::default();
+        state.select(Some(0));
+        
         Self {
             index: 0,
             list: Vec::new(),
+            state,
+            items: Vec::new(),
         }
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect, list: Vec<String>) {
-        self.list = list.iter().enumerate().map(|(i, value)| {
-            if i == self.index {
-                ListItem::new(format!("> {}", value.clone()))
-                    .style(Style::new().fg(Color::Green))
-            } else {
-                ListItem::new(value.clone())
-            }
-        })
-        .collect();
-        let list = List::new(self.list.clone());
+        self.items = list;
+        
+        // ListItemsを作成
+        self.list = self.items.iter().map(|value| {
+            ListItem::new(value.clone())
+        }).collect();
 
-        frame.render_widget(list, area);
+        // Listウィジェットを作成（ハイライトスタイル付き）
+        let list_widget = List::new(self.list.clone())
+            .highlight_style(Style::default().fg(Color::Green))
+            .highlight_symbol("> ");
+
+        // 現在の選択状態を更新
+        self.state.select(Some(self.index));
+
+        // レンダリング
+        frame.render_stateful_widget(list_widget, area, &mut self.state);
     }
 
     pub fn up(&mut self) {
         if self.index > 0 {
             self.index -= 1;
+            self.state.select(Some(self.index));
         }
     }
 
@@ -46,10 +59,9 @@ impl<'a> SelectList<'a> {
     }
 
     pub fn down(&mut self) {
-        if self.list.len() > 0 {
-            if self.index < self.list.len() - 1 {
-                self.index += 1;
-            }
+        if !self.items.is_empty() && self.index < self.items.len() - 1 {
+            self.index += 1;
+            self.state.select(Some(self.index));
         }
     }
 

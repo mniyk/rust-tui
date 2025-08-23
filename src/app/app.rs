@@ -10,6 +10,7 @@ use ratatui::{
 };
 
 use crate::app::bookmark::bookmark::Bookmarks;
+use crate::app::news::news::NewsItems;
 use crate::app::schedule::schedule::Schedules;
 use crate::app::task::task::Tasks;
 use crate::app::virtualbox::virtualbox::VirtualBox;
@@ -23,6 +24,7 @@ pub enum WindowMode {
 
 #[derive(Debug, Clone)]
 pub enum TabMode {
+    News,
     Schedule,
     Tasks,
     VirtualBox,
@@ -31,9 +33,10 @@ pub enum TabMode {
 impl From<TabMode> for Option<usize> {
     fn from(tab: TabMode) -> Self {
         match tab {
-            TabMode::Schedule => Some(0),
-            TabMode::Tasks => Some(1),
-            TabMode::VirtualBox => Some(2),
+            TabMode::News => Some(0),
+            TabMode::Schedule => Some(1),
+            TabMode::Tasks => Some(2),
+            TabMode::VirtualBox => Some(3),
         }
     }
 }
@@ -44,6 +47,7 @@ pub struct App<'a> {
     selected_tab: TabMode,
     tab_labels: Vec<Line<'static>>,
     bookmarks: Bookmarks<'a>,
+    news_items: NewsItems<'a>,
     schedules: Schedules<'a>,
     tasks: Tasks<'a>,
     virtualbox: VirtualBox<'a>,
@@ -54,13 +58,15 @@ impl<'a> App<'a> {
     pub fn new(token_info: &TokenInfo) -> Self {
         Self {
             window_mode: WindowMode::Tab,
-            selected_tab: TabMode::Schedule,
+            selected_tab: TabMode::News,
             tab_labels: vec![
+                Line::from("News"),
                 Line::from("Schedule"),
                 Line::from("Task"),
                 Line::from("VirtualBox"),
             ],
             bookmarks: Bookmarks::new(),
+            news_items: NewsItems::new(),
             schedules: Schedules::new(token_info), 
             tasks: Tasks::new(token_info),
             virtualbox: VirtualBox::new(),
@@ -101,6 +107,21 @@ impl<'a> App<'a> {
                             _ => self.bookmarks.key_binding(key),
                         }
                         WindowMode::Tab => match self.selected_tab {
+                            TabMode::News => match key.code {
+                                KeyCode::Tab => {
+                                    if !self.news_items.help.popup.active {
+                                        self.selected_tab = TabMode::Schedule;
+                                    }
+                                },
+                                KeyCode::Esc => {
+                                    if self.news_items.help.popup.active {
+                                        self.news_items.help.popup.active = false;
+                                    } else {
+                                        break
+                                    }
+                                }
+                                _ => self.news_items.key_binding(key),
+                            }
                             TabMode::Schedule => match key.code {
                                 KeyCode::Tab => {
                                     if !self.schedules.help.popup.active & !self.schedules.form.popup.active {
@@ -160,7 +181,7 @@ impl<'a> App<'a> {
                             TabMode::VirtualBox => match key.code {
                                 KeyCode::Tab => {
                                     if !self.virtualbox.help.popup.active {
-                                        self.selected_tab = TabMode::Schedule;
+                                        self.selected_tab = TabMode::News;
                                     }
                                 },
                                 KeyCode::Esc => {
@@ -199,25 +220,36 @@ impl<'a> App<'a> {
         match self.window_mode {
             WindowMode::Bookmark => {
                 self.bookmarks.pane.active = true;
+                self.news_items.pane.active = false;
                 self.schedules.pane.active = false;
                 self.tasks.pane.active = false;
                 self.virtualbox.pane.active = false;
             },
             WindowMode::Tab => match self.selected_tab {
+                TabMode::News => {
+                    self.bookmarks.pane.active = false;
+                    self.news_items.pane.active = true;
+                    self.schedules.pane.active = false;
+                    self.tasks.pane.active = false;
+                    self.virtualbox.pane.active = false;
+                }
                 TabMode::Schedule => {
                     self.bookmarks.pane.active = false;
+                    self.news_items.pane.active = false;
                     self.schedules.pane.active = true;
                     self.tasks.pane.active = false;
                     self.virtualbox.pane.active = false;
                 },
                 TabMode::Tasks => {
                     self.bookmarks.pane.active = false;
+                    self.news_items.pane.active = false;
                     self.schedules.pane.active = false;
                     self.tasks.pane.active = true;
                     self.virtualbox.pane.active = false;
                 },
                 TabMode::VirtualBox => {
                     self.bookmarks.pane.active = false;
+                    self.news_items.pane.active = false;
                     self.schedules.pane.active = false;
                     self.tasks.pane.active = false;
                     self.virtualbox.pane.active = true;
@@ -267,6 +299,7 @@ impl<'a> App<'a> {
         frame.render_widget(tabs, header_area);
 
         match self.selected_tab {
+            TabMode::News => self.news_items.render(frame, app_area),
             TabMode::Schedule => self.schedules.render(frame, app_area),
             TabMode::Tasks => self.tasks.render(frame, app_area),
             TabMode::VirtualBox => self.virtualbox.render(frame, app_area),
@@ -304,6 +337,17 @@ impl<'a> App<'a> {
             ]
         );
         self.bookmarks.form.render(frame);
+
+        self.news_items.help.render(
+            frame,
+            vec![
+                "[ Select News ]",
+                "Open News           : Enter", 
+                "Focus Move Up       : Up, Right", 
+                "Focus Move Down     : Down, Left", 
+                "Execute Update News : Shift+R",
+            ]
+        );
 
         self.schedules.help.render(
             frame,

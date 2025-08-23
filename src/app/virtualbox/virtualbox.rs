@@ -95,7 +95,11 @@ impl<'a> VirtualBox<'a> {
             KeyCode::Char('R') => {
                 self.machines = Self::read();
             },
-            _ => self.select_list.key_binding(key),
+            _ => {
+                if !self.help.popup.active {
+                    self.select_list.key_binding(key);
+                }
+            }
         }
     }
 }
